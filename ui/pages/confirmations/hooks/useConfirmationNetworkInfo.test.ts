@@ -1,5 +1,13 @@
+import { ApprovalType } from '@metamask/controller-utils';
+import { TransactionType } from '@metamask/transaction-controller';
+
 import mockState from '../../../../test/data/mock-state.json';
 import { renderHookWithProvider } from '../../../../test/lib/render-helpers';
+import { ConfirmContextProvider } from '../context/confirm';
+import {
+  getExampleMockConfirmState,
+  getMockConfirmState,
+} from '../test/helper';
 import useConfirmationNetworkInfo from './useConfirmationNetworkInfo';
 
 describe('useConfirmationNetworkInfo', () => {
@@ -12,16 +20,26 @@ describe('useConfirmationNetworkInfo', () => {
     };
     const { result } = renderHookWithProvider(
       () => useConfirmationNetworkInfo(),
-      {
-        ...mockState,
+      getMockConfirmState({
         metamask: {
-          ...mockState.metamask,
           providerConfig,
+          pendingApprovals: {
+            123: {
+              id: 123,
+              type: ApprovalType.EthSignTypedData,
+            },
+          },
+          unapprovedTypedMessages: {
+            123: {
+              id: 123,
+              chainId: '0x1',
+              type: TransactionType.signTypedData,
+            },
+          },
         },
-        confirm: {
-          currentConfirmation: { id: '1', chainId: '0x1' },
-        },
-      },
+      }),
+      undefined,
+      ConfirmContextProvider,
     );
 
     expect(result.current.networkDisplayName).toBe('Ethereum Mainnet');
@@ -31,10 +49,8 @@ describe('useConfirmationNetworkInfo', () => {
   it('returns display name and image for custom network', () => {
     const { result } = renderHookWithProvider(
       () => useConfirmationNetworkInfo(),
-      {
-        ...mockState,
+      getExampleMockConfirmState({
         metamask: {
-          ...mockState.metamask,
           providerConfig: {
             chainId: '0x7',
             type: 'rpc',
@@ -54,10 +70,9 @@ describe('useConfirmationNetworkInfo', () => {
             },
           },
         },
-        confirm: {
-          currentConfirmation: { id: '1', msgParams: {} },
-        },
-      },
+      }),
+      undefined,
+      ConfirmContextProvider,
     );
 
     expect(result.current.networkDisplayName).toBe('Custom Mainnet RPC');
@@ -67,18 +82,15 @@ describe('useConfirmationNetworkInfo', () => {
   it('should return empty strings if no matching network is found', () => {
     const { result } = renderHookWithProvider(
       () => useConfirmationNetworkInfo(),
-      {
-        ...mockState,
+      getExampleMockConfirmState({
         metamask: {
-          ...mockState.metamask,
           providerConfig: {
             chainId: '0x7',
           },
         },
-        confirm: {
-          currentConfirmation: { id: '1', msgParams: {} },
-        },
-      },
+      }),
+      undefined,
+      ConfirmContextProvider,
     );
 
     expect(result.current.networkDisplayName).toBe('');
@@ -106,20 +118,17 @@ describe('useConfirmationNetworkInfo', () => {
     };
     const { result } = renderHookWithProvider(
       () => useConfirmationNetworkInfo(),
-      {
-        ...mockState,
+      getExampleMockConfirmState({
         metamask: {
-          ...mockState.metamask,
           providerConfig,
           networkConfigurations: {
             ...mockState.metamask.networkConfigurations,
             [customNetwork.id]: customNetwork,
           },
         },
-        confirm: {
-          currentConfirmation: { id: '1', chainId: '0x1' },
-        },
-      },
+      }),
+      undefined,
+      ConfirmContextProvider,
     );
 
     expect(result.current.networkDisplayName).toBe('Flashbots Protect');

@@ -6,6 +6,8 @@ import {
 import { Severity } from '../../../../../helpers/constants/design-system';
 import { renderHookWithProvider } from '../../../../../../test/lib/render-helpers';
 import mockState from '../../../../../../test/data/mock-state.json';
+import { ConfirmContextProvider } from '../../../context/confirm';
+import * as useCurrentConfirmation from '../../useCurrentConfirmation';
 import { useSigningOrSubmittingAlerts } from './useSigningOrSubmittingAlerts';
 
 const TRANSACTION_META_MOCK: Partial<TransactionMeta> = {
@@ -26,17 +28,12 @@ const CONFIRMATION_MOCK = {
 };
 
 function buildState({
-  currentConfirmation,
   transactions,
 }: {
-  currentConfirmation?: Partial<TransactionMeta>;
   transactions?: Partial<TransactionMeta>[];
 } = {}) {
   return {
     ...mockState,
-    confirm: {
-      currentConfirmation,
-    },
     metamask: {
       ...mockState.metamask,
       transactions,
@@ -45,14 +42,17 @@ function buildState({
 }
 
 function runHook({
-  currentConfirmation,
   transactions,
 }: {
-  currentConfirmation?: Partial<TransactionMeta>;
   transactions?: Partial<TransactionMeta>[];
 } = {}) {
-  const state = buildState({ currentConfirmation, transactions });
-  const response = renderHookWithProvider(useSigningOrSubmittingAlerts, state);
+  const state = buildState({ transactions });
+  const response = renderHookWithProvider(
+    useSigningOrSubmittingAlerts,
+    state,
+    undefined,
+    ConfirmContextProvider,
+  );
 
   return response.result.current;
 }
@@ -65,22 +65,26 @@ describe('useSigningOrSubmittingAlerts', () => {
   it('returns no alerts if no confirmation', () => {
     expect(
       runHook({
-        currentConfirmation: undefined,
         transactions: [TRANSACTION_META_MOCK],
       }),
     ).toEqual([]);
   });
 
   it('returns no alerts if no transactions', () => {
-    expect(
-      runHook({ currentConfirmation: CONFIRMATION_MOCK, transactions: [] }),
-    ).toEqual([]);
+    jest
+      .spyOn(useCurrentConfirmation, 'default')
+      .mockReturnValue({ currentConfirmation: CONFIRMATION_MOCK });
+
+    expect(runHook({ transactions: [] })).toEqual([]);
   });
 
   it('returns alerts if transaction on different chain', () => {
+    jest
+      .spyOn(useCurrentConfirmation, 'default')
+      .mockReturnValue({ currentConfirmation: CONFIRMATION_MOCK });
+
     expect(
       runHook({
-        currentConfirmation: CONFIRMATION_MOCK,
         transactions: [
           {
             ...TRANSACTION_META_MOCK,
@@ -93,9 +97,12 @@ describe('useSigningOrSubmittingAlerts', () => {
   });
 
   it('returns no alerts if transaction has alternate status', () => {
+    jest
+      .spyOn(useCurrentConfirmation, 'default')
+      .mockReturnValue({ currentConfirmation: CONFIRMATION_MOCK });
+
     expect(
       runHook({
-        currentConfirmation: CONFIRMATION_MOCK,
         transactions: [
           { ...TRANSACTION_META_MOCK, status: TransactionStatus.submitted },
         ],
@@ -104,17 +111,23 @@ describe('useSigningOrSubmittingAlerts', () => {
   });
 
   it('returns no alerts if confirmation has incorrect type', () => {
+    jest.spyOn(useCurrentConfirmation, 'default').mockReturnValue({
+      currentConfirmation: { type: TransactionType.signTypedData },
+    });
+
     expect(
       runHook({
-        currentConfirmation: { type: TransactionType.signTypedData },
         transactions: [TRANSACTION_META_MOCK],
       }),
     ).toEqual([]);
   });
 
   it('returns alert if signed transaction', () => {
+    jest
+      .spyOn(useCurrentConfirmation, 'default')
+      .mockReturnValue({ currentConfirmation: CONFIRMATION_MOCK });
+
     const alerts = runHook({
-      currentConfirmation: CONFIRMATION_MOCK,
       transactions: [
         { ...TRANSACTION_META_MOCK, status: TransactionStatus.signed },
       ],
@@ -124,8 +137,11 @@ describe('useSigningOrSubmittingAlerts', () => {
   });
 
   it('returns alert if approved transaction', () => {
+    jest
+      .spyOn(useCurrentConfirmation, 'default')
+      .mockReturnValue({ currentConfirmation: CONFIRMATION_MOCK });
+
     const alerts = runHook({
-      currentConfirmation: CONFIRMATION_MOCK,
       transactions: [
         { ...TRANSACTION_META_MOCK, status: TransactionStatus.approved },
       ],

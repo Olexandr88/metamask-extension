@@ -1,12 +1,19 @@
 import { ApprovalType } from '@metamask/controller-utils';
 import {
+  TransactionStatus,
+  TransactionType,
+} from '@metamask/transaction-controller';
+
+import {
   BlockaidResultType,
   SecurityProvider,
 } from '../../../../../shared/constants/security-provider';
 import { Severity } from '../../../../helpers/constants/design-system';
 import { renderHookWithProvider } from '../../../../../test/lib/render-helpers';
 import mockState from '../../../../../test/data/mock-state.json';
+import { ConfirmContextProvider } from '../../context/confirm';
 import { SecurityAlertResponse } from '../../types/confirm';
+import { getMockConfirmState } from '../../test/helper';
 import useBlockaidAlert from './useBlockaidAlerts';
 
 const mockSecurityAlertResponse: SecurityAlertResponse = {
@@ -24,29 +31,27 @@ const currentConfirmationMock = {
   securityAlertResponse: mockSecurityAlertResponse,
 };
 
-const mockExpectedState = {
-  ...mockState,
-  metamask: {
-    ...mockState.metamask,
-    unapprovedPersonalMsgs: {
-      '1': { ...currentConfirmationMock, msgParams: {} },
-    },
-    pendingApprovals: {
-      '1': {
-        ...currentConfirmationMock,
-        origin: 'origin',
-        requestData: {},
-        requestState: null,
-        expectsResult: false,
+const getMockCurrentState = (args: Record<string, unknown>) =>
+  getMockConfirmState({
+    metamask: {
+      unapprovedPersonalMsgs: {
+        '1': { ...currentConfirmationMock, msgParams: {} },
       },
+      pendingApprovals: {
+        '1': {
+          ...currentConfirmationMock,
+          origin: 'origin',
+          requestData: {},
+          requestState: null,
+          expectsResult: false,
+        },
+      },
+      signatureSecurityAlertResponses: {
+        'test-id-mock': mockSecurityAlertResponse,
+      },
+      ...args,
     },
-    preferences: { redesignedConfirmationsEnabled: true },
-    signatureSecurityAlertResponses: {
-      'test-id-mock': mockSecurityAlertResponse,
-    },
-  },
-  confirm: { currentConfirmation: currentConfirmationMock },
-};
+  });
 
 const EXPECTED_ALERT = {
   key: mockSecurityAlertResponse.securityAlertId,
@@ -58,24 +63,28 @@ const EXPECTED_ALERT = {
 };
 
 describe('useBlockaidAlerts', () => {
-  it('returns an empty array when there is no current confirmation', () => {
+  it('returns an empty array when there is no confirmation', () => {
     const { result } = renderHookWithProvider(
       () => useBlockaidAlert(),
       mockState,
+      undefined,
+      ConfirmContextProvider,
     );
     expect(result.current).toEqual([]);
   });
 
   it('returns alerts when there is a valid PersonalSign confirmation with a security alert response', () => {
-    const { result } = renderHookWithProvider(() => useBlockaidAlert(), {
-      ...mockExpectedState,
-      metamask: {
-        ...mockExpectedState.metamask,
-        signatureSecurityAlertResponses: {
-          'test-id-mock': mockSecurityAlertResponse,
-        },
+    const mockCurrentState = getMockCurrentState({
+      signatureSecurityAlertResponses: {
+        'test-id-mock': mockSecurityAlertResponse,
       },
     });
+    const { result } = renderHookWithProvider(
+      () => useBlockaidAlert(),
+      mockCurrentState,
+      undefined,
+      ConfirmContextProvider,
+    );
 
     expect(result.current).toHaveLength(1);
     expect(result.current[0].reportUrl).toBeDefined();
@@ -84,17 +93,30 @@ describe('useBlockaidAlerts', () => {
   });
 
   it('returns alerts if confirmation is contract interaction with security alert response', () => {
-    const { result } = renderHookWithProvider(() => useBlockaidAlert(), {
-      ...mockExpectedState,
-      metamask: {
-        ...mockState.metamask,
-        transactions: [
-          {
-            securityAlertResponse: mockSecurityAlertResponse,
-          },
-        ],
+    const mockCurrentState = getMockCurrentState({
+      pendingApprovals: {
+        '1': {
+          id: '1',
+          type: ApprovalType.Transaction,
+        },
       },
+      transactions: [
+        {
+          id: '1',
+          type: TransactionType.contractInteraction,
+          chainId: '0x5',
+          securityAlertResponse: mockSecurityAlertResponse,
+          status: TransactionStatus.unapproved,
+        },
+      ],
     });
+
+    const { result } = renderHookWithProvider(
+      () => useBlockaidAlert(),
+      mockCurrentState,
+      undefined,
+      ConfirmContextProvider,
+    );
 
     expect(result.current).toHaveLength(1);
     expect(result.current[0].reportUrl).toBeDefined();
